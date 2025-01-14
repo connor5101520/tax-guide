@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tax Filing Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .question-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-guidance {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #0066cc;
+            margin: 10px 0;
+        }
+        .options-container {
+            margin: 15px 0;
+        }
+        .option-item {
+            margin: 10px 0;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .back-button {
+            background: #666;
+        }
+        .back-button:hover {
+            background: #555;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #eee;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .progress {
+            height: 100%;
+            background: #0066cc;
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+        .deduction-analysis {
+            background: #e7fff0;
+            padding: 15px;
+            border-left: 4px solid #00cc66;
+            margin: 10px 0;
+        }
+        input[type="text"], 
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>2024 Tax Filing Guide</h1>
+    
+    <div class="progress-bar">
+        <div class="progress" id="progress"></div>
+    </div>
+
+    <div id="questionnaire">
+        <!-- Questions will be inserted here -->
+    </div>
+
+    <script>
+        // Question definitions remain the same as before...
+        const questions = {
+            filing_status: {
+                text: "What is your filing status?",
+                options: [
+                    "Single",
+                    "Married Filing Jointly",
+                    "Married Filing Separately",
+                    "Head of Household",
+                    "Qualifying Widow(er)"
+                ],
+                formGuidance: "This determines which 1040 form you'll use and your standard deduction amount."
+            },
+            w2_count: {
+                text: "How many W-2 forms did you receive for 2024?",
+                type: "number",
+                validation: (value) => value >= 0 && Number.isInteger(Number(value)),
+                formGuidance: "You'll need all your W-2 forms to complete Form 1040. Each W-2 shows your wages and tax withholding."
+            },
+            total_wages: {
+                text: "What is your total wages from all W-2s (Box 1)?",
+                type: "number",
+                validation: (value) => value >= 0,
+                formGuidance: "Add up Box 1 from all your W-2 forms. This goes on Form 1040, Line 1a."
+            },
+            federal_withholding: {
+                text: "What is your total federal tax withheld (Box 2 from all W-2s)?",
+                type: "number",
+                validation: (value) => value >= 0,
+                formGuidance: "Add up Box 2 from all your W-2 forms. This goes on Form 1040, Line 25c."
+            },
+            additional_income: {
+                text: "Did you receive any of the following types of income? (Select all that apply)",
+                type: "checkbox",
+                options: [
+                    "Interest income (1099-INT)",
+                    "Dividend income (1099-DIV)",
+                    "Retirement distributions (1099-R)",
+                    "Social Security benefits",
+                    "Self-employment income",
+                    "Rental income",
+                    "None of the above"
+                ],
+                formGuidance: "Additional income may require Schedules B, C, D, or E with your Form 1040."
+            },
+            dependents: {
+                text: "How many dependents can you claim?",
+                type: "number",
+                validation: (value) => value >= 0 && Number.isInteger(Number(value)),
+                formGuidance: "This affects your eligibility for Child Tax Credit and Earned Income Credit."
+            },
+            dependent_types: {
+                text: "Select all that apply to your dependents:",
+                type: "checkbox",
+                dependsOn: "dependents",
+                showIf: (value) => value > 0,
+                options: [
+                    "Children under 17",
+                    "Full-time students 17-23",
+                    "Disabled dependents",
+                    "Other dependents"
+                ],
+                formGuidance: "Different types of dependents may qualify for different credits."
+            },
+            education_expenses: {
+                text: "Did you have any education expenses in 2024?",
+                options: ["Yes", "No"],
+                formGuidance: "If yes, you might qualify for education credits using Form 8863."
+            },
+            student_loan_interest: {
+                text: "Did you pay any student loan interest in 2024?",
+                options: ["Yes", "No"],
+                formGuidance: "Student loan interest is reported on Form 1098-E and can be deducted on Form 1040 Schedule 1."
+            },
+            mortgage_interest: {
+                text: "Did you pay mortgage interest in 2024?",
+                options: ["Yes", "No"],
+                formGuidance: "Mortgage interest from Form 1098 may make itemizing deductions beneficial (Schedule A)."
+            },
+            mortgage_interest_amount: {
+                text: "How much mortgage interest did you pay? (Form 1098, Box 1)",
+                type: "number",
+                dependsOn: "mortgage_interest",
+                showIf: "Yes",
+                validation: (value) => value >= 0,
+                formGuidance: "Enter the amount from Form 1098, Box 1."
+            },
+            property_tax: {
+                text: "How much did you pay in state and local property taxes?",
+                type: "number",
+                dependsOn: "mortgage_interest",
+                showIf: "Yes",
+                validation: (value) => value >= 0,
+                formGuidance: "Enter property taxes paid during the tax year. Note: SALT deduction limit is $10,000."
+            },
+            charitable_contributions: {
+                text: "Did you make any charitable contributions?",
+                options: ["Yes", "No"],
+                formGuidance: "Charitable contributions can be itemized on Schedule A."
+            },
+            charitable_amount: {
+                text: "What is the total amount of your charitable contributions?",
+                type: "number",
+                dependsOn: "charitable_contributions",
+                showIf: "Yes",
+                validation: (value) => value >= 0,
+                formGuidance: "Include cash and non-cash contributions to qualified organizations."
+            },
+            medical_expenses: {
+                text: "Did you have significant medical expenses this year?",
+                options: ["Yes", "No"],
+                formGuidance: "Medical expenses must exceed 7.5% of AGI to be deductible."
+            },
+            medical_amount: {
+                text: "What is the total amount of your medical expenses?",
+                type: "number",
+                dependsOn: "medical_expenses",
+                showIf: "Yes",
+                validation: (value) => value >= 0,
+                formGuidance: "Include expenses not reimbursed by insurance."
+            },
+            interest_amount: {
+                text: "What is your total interest income? (from 1099-INT)",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Interest income (1099-INT)"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter the total from all 1099-INT forms, Box 1."
+            },
+            dividend_amount: {
+                text: "What is your total dividend income? (from 1099-DIV)",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Dividend income (1099-DIV)"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter the total from all 1099-DIV forms, Box 1a."
+            },
+            retirement_amount: {
+                text: "What is your total retirement distribution income? (from 1099-R)",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Retirement distributions (1099-R)"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter the taxable amount from all 1099-R forms, Box 2a."
+            },
+            social_security_amount: {
+                text: "What is your total Social Security income?",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Social Security benefits"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter the total from Form SSA-1099, Box 5. Note: Up to 85% may be taxable based on your total income."
+            },
+            self_employment_amount: {
+                text: "What is your total self-employment income?",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Self-employment income"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter your net self-employment income (revenue minus expenses)."
+            },
+            rental_amount: {
+                text: "What is your total rental income?",
+                type: "number",
+                dependsOn: "additional_income",
+                showIf: (answers) => answers.includes("Rental income"),
+                validation: (value) => value >= 0,
+                formGuidance: "Enter your net rental income (revenue minus expenses)."
+            }
+        };
+
+        let currentQuestionIndex = 0;
+        const answers = {};
+        const questionHistory = [];
+
+        function updateProgress() {
+            const totalQuestions = Object.keys(questions).length;
+            const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100;
+            document.getElementById('progress').style.width = `${Math.min(progress, 100)}%`;
+        }
+
+        function getAnswer() {
+            const questionKeys = Object.keys(questions);
+            const currentKey = questionKeys[currentQuestionIndex];
+            const question = questions[currentKey];
+
+            if (question.type === "number") {
+                const value = document.getElementById('answer').value;
+                return value ? Number(value) : null;
+            } else if (question.type === "checkbox") {
+                const checked = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(input => input.value);
+                return checked.length > 0 ? checked : null;
+            } else {
+                const selected = document.querySelector('input[name="answer"]:checked');
+                return selected ? selected.value : null;
+            }
+        }
+
+        function validateAnswer(answer, question) {
+            if (answer === null || answer === undefined) {
+                return "Please provide an answer before continuing.";
+            }
+            if (question.type === "number" && question.validation) {
+                return question.validation(answer) ? null : "Please enter a valid number.";
+            }
+            return null;
+        }
+
+        function nextQuestion() {
+            const answer = getAnswer();
+            const questionKeys = Object.keys(questions);
+            const currentKey = questionKeys[currentQuestionIndex];
+            const currentQuestion = questions[currentKey];
+
+            const error = validateAnswer(answer, currentQuestion);
+            if (error) {
+                const errorDiv = document.getElementById('error-message');
+                if (errorDiv) {
+                    errorDiv.textContent = error;
+                } else {
+                    const div = document.createElement('div');
+                    div.id = 'error-message';
+                    div.className = 'error';
+                    div.textContent = error;
+                    document.querySelector('.button-container').before(div);
+                }
+                return;
+            }
+
+            // Clear any existing error
+            const errorDiv = document.getElementById('error-message');
+            if (errorDiv) errorDiv.remove();
+
+            // Save answer
+            answers[currentKey] = answer;
+            questionHistory.push(currentQuestionIndex);
+
+            // Move to next question
+            if (currentQuestionIndex < questionKeys.length - 1) {
+                currentQuestionIndex++;
+                showQuestion();
+            } else {
+                showSummary();
+            }
+        }
+
+        function previousQuestion() {
+            if (questionHistory.length > 0) {
+                currentQuestionIndex = questionHistory.pop();
+                showQuestion();
+            }
+        }
+
+        function showQuestion() {
+            const questionKeys = Object.keys(questions);
+            if (currentQuestionIndex >= questionKeys.length) {
+                showSummary();
+                return;
+            }
+
+            const currentKey = questionKeys[currentQuestionIndex];
+            const question = questions[currentKey];
+
+            // Check dependencies
+            if (question.dependsOn && question.showIf) {
+                if (answers[question.dependsOn] !== question.showIf) {
+                    currentQuestionIndex++;
+                    showQuestion();
+                    return;
+                }
+            }
+
+            let html = `
+                <div class="question-container">
+                    <h2>${question.text}</h2>
+            `;
+
+            if (question.type === "number") {
+                const currentValue = answers[currentKey] || '';
+                html += `<input type="number" id="answer" min="0" step="0.01" value="${currentValue}">`;
+            } else if (question.type === "checkbox") {
+                html += `<div class="options-container">`;
+                question.options.forEach((option, index) => {
+                    const checked = answers[currentKey]?.includes(option) ? 'checked' : '';
+                    html += `
+                        <div class="option-item">
+                            <input type="checkbox" id="option${index}" value="${option}" ${checked}>
+                            <label for="option${index}">${option}</label>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            } else {
+                html += `<div class="options-container">`;
+                question.options.forEach((option, index) => {
+                    const checked = answers[currentKey] === option ? 'checked' : '';
+                    html += `
+                        <div class="option-item">
+                            <input type="radio" name="answer" id="option${index}" value="${option}" ${checked}>
+                            <label for="option${index}">${option}</label>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+
+            if (question.formGuidance) {
+                html += `
+                    <div class="form-guidance">
+                        <strong>Form Guidance:</strong> ${question.formGuidance}
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="button-container">
+                    ${currentQuestionIndex > 0 ? '<button class="back-button" onclick="previousQuestion()">Back</button>' : ''}
+                    <button onclick="nextQuestion()">Next</button>
+                </div>
+            </div>
+            `;
+
+            document.getElementById('questionnaire').innerHTML = html;
+            updateProgress();
+        }
+
+        function getStandardDeduction(filingStatus) {
+            const standardDeductions = {
+                "Single": 14600,
+                "Married Filing Jointly": 29200,
+                "Married Filing Separately": 14600,
+                "Head of Household": 21900,
+                "Qualifying Widow(er)": 29200
+            };
+            return standardDeductions[filingStatus] || 14600;
+        }
+
+        function calculateTotalIncome() {
+            let total = 0;
+            let breakdown = [];
+
+            // W-2 Income
+            if (answers.total_wages) {
+                total += Number(answers.total_wages);
+                breakdown.push({
+                    source: "W-2 Wages",
+                    amount: Number(answers.total_wages)
+                });
+            }
+
+            // Interest Income
+            if (answers.interest_amount) {
+                total += Number(answers.interest_amount);
+                breakdown.push({
+                    source: "Interest Income",
+                    amount: Number(answers.interest_amount)
+                });
+            }
+
+            // Dividend Income
+            if (answers.dividend_amount) {
+                total += Number(answers.dividend_amount);
+                breakdown.push({
+                    source: "Dividend Income",
+                    amount: Number(answers.dividend_amount)
+                });
+            }
+
+            // Retirement Distributions
+            if (answers.retirement_amount) {
+                total += Number(answers.retirement_amount);
+                breakdown.push({
+                    source: "Retirement Distributions",
+                    amount: Number(answers.retirement_amount)
+                });
+            }
+
+            // Social Security (85% maximum taxable)
+            if (answers.social_security_amount) {
+                const taxableSS = Number(answers.social_security_amount) * 0.85;
+                total += taxableSS;
+                breakdown.push({
+                    source: "Social Security (85% taxable portion)",
+                    amount: taxableSS
+                });
+            }
+
+            // Self-Employment Income
+            if (answers.self_employment_amount) {
+                total += Number(answers.self_employment_amount);
+                breakdown.push({
+                    source: "Self-Employment Income",
+                    amount: Number(answers.self_employment_amount)
+                });
+            }
+
+            // Rental Income
+            if (answers.rental_amount) {
+                total += Number(answers.rental_amount);
+                breakdown.push({
+                    source: "Rental Income",
+                    amount: Number(answers.rental_amount)
+                });
+            }
+
+            return { total, breakdown };
+        }
+
+        function calculateItemizedDeductions() {
+            let total = 0;
+            const totalIncome = calculateTotalIncome().total;
+            
+            if (answers.mortgage_interest_amount) {
+                total += Number(answers.mortgage_interest_amount);
+            }
+            
+            if (answers.property_tax) {
+                total += Math.min(Number(answers.property_tax), 10000);
+            }
+            
+            if (answers.charitable_amount) {
+                total += Number(answers.charitable_amount);
+            }
+            
+            if (answers.medical_amount) {
+                const threshold = totalIncome * 0.075;
+                const medicalDeduction = Math.max(0, Number(answers.medical_amount) - threshold);
+                total += medicalDeduction;
+            }
+            
+            return total;
+        }
+
+        function showSummary() {
+            const standardDeduction = getStandardDeduction(answers.filing_status);
+            const itemizedDeductions = calculateItemizedDeductions();
+
+            let html = `
+                <div class="question-container">
+                    <h2>Tax Filing Summary</h2>
+
+                    <div class="deduction-analysis">
+                        <h3>Income Calculation:</h3>
+                        ${calculateTotalIncome().breakdown.map(item => 
+                            `<p>${item.source}: ${item.amount.toLocaleString()}</p>`
+                        ).join('')}
+                        <p><strong>Total Estimated Income: ${calculateTotalIncome().total.toLocaleString()}</strong></p>
+                        
+                        <h3>Deduction Analysis:</h3>
+                        <p>Standard Deduction Amount: ${standardDeduction.toLocaleString()}</p>
+                        <p>Your Itemized Deductions: ${itemizedDeductions.toLocaleString()}</p>
+                        <p><strong>Recommendation:</strong> ${itemizedDeductions > standardDeduction ? 
+                            'Take Itemized Deductions' : 'Take Standard Deduction'}</p>
+                        ${itemizedDeductions > standardDeduction ? 
+                            `<p>Using itemized deductions saves you ${(itemizedDeductions - standardDeduction).toLocaleString()}</p>` : 
+                            `<p>Standard deduction saves you ${(standardDeduction - itemizedDeductions).toLocaleString()}</p>`}
+                    </div>
+
+                    <div class="button-container">
+                        <button class="back-button" onclick="previousQuestion()">Back</button>
+                        <button onclick="window.print()">Print Summary</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('questionnaire').innerHTML = html;
+            updateProgress();
+        }
+
+        // Start the questionnaire
+        showQuestion();
+    </script>
+</body>
+</html>
+
+
